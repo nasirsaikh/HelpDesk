@@ -58,7 +58,8 @@ Platform support requires explicit action, a reason and a 30-minute session. Act
 - Knowledge candidates are filtered by company and publication before lexical/cosine ranking. Every vector row carries a company namespace.
 - Prompt resolution combines the safe platform prompt with current-company purpose/type overrides and training examples.
 - Analytics SQL sees only allowlisted columns copied from authorized querysets into an isolated SQLite database. Raw tables, schema tables, extension loading, mutation and multi-statements are rejected; execution and results are bounded.
-- Workers dispatch globally but enter one explicit company context per job. Exports revalidate the actor at execution and again at download; permission changes invalidate previously generated exports.
+- Workers dispatch globally but enter one explicit company context per job or agent request. Exports and agents revalidate the actor at execution and again before results are read; permission changes invalidate previously generated results.
+- Company-owned agents bind a provider, prompt, knowledge categories, role restrictions and registered tools. Tool calls recheck current permissions. Comment proposals remain drafts until the owner explicitly reviews them through the normal comment service. See [agent execution](agents.md).
 - Mailbox ownership determines inbound email ownership before policy lookup. Authority matching uses company, sender, policy/organization, transaction type and validity dates.
 - Feature flags gate routes, navigation and ordinary scoped queries. Tenant deactivation blocks requests, tokens and worker entry.
 

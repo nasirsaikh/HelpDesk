@@ -11,3 +11,5 @@
 @media(max-width:800px){.sidebar-close{display:block}[dir=rtl] .sidebar{transform:translateX(100%)}[dir=rtl] .sidebar-open .sidebar{transform:translateX(0)}}
 
 .dashboard-range{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:-8px 0 20px}.dashboard-range select{width:auto;max-width:165px}.dashboard-range label{color:var(--muted)}
+
+.agent-question{font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:16px}.agent-grid .config-card{align-items:flex-start}.agent-grid .config-card>div{min-width:0}.agent-grid .muted{overflow-wrap:anywhere}.prose{overflow-wrap:anywhere}#id_allowed_tools,#id_allowed_roles{display:grid;gap:7px}#id_allowed_tools label,#id_allowed_roles label{display:flex;align-items:center;gap:8px;font-weight:400;margin:0}#id_allowed_tools input,#id_allowed_roles input{width:auto}

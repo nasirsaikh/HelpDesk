@@ -62,7 +62,7 @@ AI extraction reads subject/body and requires strict JSON with policy_number, tr
 
 Configure a company-owned Ollama, OpenAI-compatible or Hugging Face chat-completion endpoint. Ollama expects its base URL; compatible providers expect the API prefix before `/chat/completions` (for example `https://router.huggingface.co/v1`). API keys use the tenant-prefixed token environment reference. Sensitive-data permission must be deliberately enabled for extraction. Vision support is recorded; no vision/OCR transport is implemented here.
 
-Published company knowledge articles automatically create/update retrieval chunks with a company namespace. The built-in assistant performs scoped keyword retrieval; the retrieval service also accepts caller-supplied numeric vectors for scoped cosine ranking. It does not automatically call an embedding vendor or generate an ungrounded chat answer.
+Published company knowledge articles automatically create/update retrieval chunks with a company namespace. Knowledge search performs scoped keyword retrieval; the retrieval service also accepts caller-supplied numeric vectors for scoped cosine ranking. It does not automatically call an embedding vendor. The **AI agents** interface uses company-bound models and permission-checked tools for Claims, Policy, Finance and Ticketing; see [agent configuration](agents.md). Agents need an active provider approved for sensitive data and the background worker.
 
 Reports expose the authorized snapshot SQL boundary. Raw application database credentials must never be handed to Vanna or another SQL-generating model. Connect generated SELECT statements to the snapshot service instead. There are no raw shared SQL tables available inside that boundary.
 
@@ -72,7 +72,7 @@ Reports expose the authorized snapshot SQL boundary. Raw application database cr
 python manage.py run_tenant_jobs --watch
 ```
 
-Workers poll queued jobs every 15 seconds and pass the company explicitly. Supported jobs are REPORT_EXPORT, MAILBOX_SYNC and EMAIL_SEND. Job payloads require the owning tenant_id. Queued exports revalidate the requester's role/grants at execution; downloads reject access changes after generation. Jobs for inactive companies remain retained without processing.
+Workers poll queued jobs and agent requests every 15 seconds and pass the company explicitly. Supported jobs are REPORT_EXPORT, MAILBOX_SYNC and EMAIL_SEND. Job payloads require the owning tenant_id. Queued exports and agents revalidate the requester's role/grants at execution; downloads and agent history reject access changes after generation. Jobs for inactive companies remain retained without processing. Agent requests left Running after a worker crash fail after five minutes on the next dispatcher poll and can be resubmitted.
 
 Category email notifications are off by default. When enabled, ticket updates create an outbox entry only for active members who opted into email. Browser notifications honor membership preference and show only the active company's notifications for the signed-in user. Internal note text is excluded from requester email history.
 

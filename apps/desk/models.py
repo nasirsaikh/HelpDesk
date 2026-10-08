@@ -782,6 +782,141 @@ class AIPrompt(TenantOwnedModel):
         ]
 
 
+class AIAgentConfig(TenantOwnedModel):
+    """A company-owned model binding, instructions and a subset of registered tools."""
+
+    from .agent_specs import DOMAINS
+
+    code = models.CharField(max_length=40)
+    name = models.CharField(max_length=100)
+    domain = models.CharField(max_length=16, choices=list(DOMAINS.items()))
+    provider = models.ForeignKey(AIProviderConfig, on_delete=models.PROTECT, null=True, blank=True)
+    system_prompt = models.TextField(max_length=8000)
+    knowledge_categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Knowledge categories this agent may search. An empty list disables knowledge retrieval.",
+    )
+    allowed_tools = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="A subset of the registered tools for this agent's domain.",
+    )
+    allowed_roles = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Optional company role restriction. Empty means use existing resource permissions.",
+    )
+    active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    max_steps = models.PositiveSmallIntegerField(default=4)
+    timeout_seconds = models.PositiveSmallIntegerField(default=120)
+
+    class Meta(TenantOwnedModel.Meta):
+        abstract = False
+        verbose_name = "AI agent"
+        verbose_name_plural = "AI agents"
+        ordering = ["name"]
+        constraints = TenantOwnedModel.Meta.constraints + [
+            models.UniqueConstraint(fields=["tenant", "code"], name="agent_company_code"),
+            models.UniqueConstraint(
+                fields=["tenant", "domain"],
+                condition=models.Q(is_default=True),
+                name="agent_company_default_domain",
+            ),
+        ]
+
+    def clean(self):
+        import re
+
+        from apps.tenancy.models import TenantMembership
+
+        from .agent_specs import DOMAIN_TOOLS
+
+        super().clean()
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,39}", self.code):
+            raise ValidationError({"code": "Use 2–40 uppercase letters, digits or underscores."})
+        for field, allowed in [
+            ("allowed_tools", DOMAIN_TOOLS.get(self.domain, set())),
+            ("allowed_roles", set(TenantMembership.Role.values)),
+        ]:
+            values = getattr(self, field)
+            if (
+                not isinstance(values, list)
+                or any(not isinstance(v, str) or v not in allowed for v in values)
+                or len(values) != len(set(values))
+            ):
+                raise ValidationError({field: "Use unique supported values for this domain."})
+        values = self.knowledge_categories
+        if (
+            not isinstance(values, list)
+            or len(values) > 20
+            or any(not isinstance(v, str) or not v.strip() or len(v) > 80 for v in values)
+        ):
+            raise ValidationError(
+                {
+                    "knowledge_categories": "Use at most 20 nonempty category names, each at most 80 characters."
+                }
+            )
+        if not 1 <= self.max_steps <= 8 or not 10 <= self.timeout_seconds <= 180:
+            raise ValidationError("Use 1–8 model steps and a 10–180 second time budget.")
+
+    def __str__(self):
+        return self.name
+
+
+class AIAgentRun(TenantOwnedModel):
+    permission_resource = "internal"
+    agent = models.ForeignKey(AIAgentConfig, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    support_session_uuid = models.UUIDField(null=True, blank=True, editable=False)
+    user_input = models.TextField(max_length=3000)
+    access_signature = models.TextField(blank=True)
+    resources = models.JSONField(default=list, blank=True)
+    status = models.CharField(
+        max_length=12,
+        default="QUEUED",
+        choices=[
+            ("QUEUED", "Queued"),
+            ("RUNNING", "Running"),
+            ("COMPLETE", "Complete"),
+            ("FAILED", "Failed"),
+        ],
+    )
+    provider_name = models.CharField(max_length=100, blank=True)
+    model_name = models.CharField(max_length=160, blank=True)
+    prompt_hash = models.CharField(max_length=64, blank=True)
+    answer = models.TextField(blank=True)
+    trace = models.JSONField(default=list, blank=True)
+    error = models.CharField(max_length=200, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantOwnedModel.Meta):
+        abstract = False
+        verbose_name = "AI agent request"
+        verbose_name_plural = "AI agent requests"
+        ordering = ["-created_at"]
+
+
+class AIAgentAction(TenantOwnedModel):
+    permission_resource = "internal"
+    run = models.ForeignKey(AIAgentRun, on_delete=models.PROTECT, related_name="actions")
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT)
+    body = models.TextField(max_length=2000)
+    draft_hash = models.CharField(max_length=64)
+    applied_at = models.DateTimeField(null=True, blank=True)
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantOwnedModel.Meta):
+        abstract = False
+        verbose_name = "AI comment draft"
+        verbose_name_plural = "AI comment drafts"
+        constraints = TenantOwnedModel.Meta.constraints + [
+            models.UniqueConstraint(fields=["run", "draft_hash"], name="agent_run_unique_draft")
+        ]
+
+
 class VectorDocument(TenantOwnedModel):
     permission_resource = "knowledge"
     article = models.ForeignKey(KnowledgeArticle, on_delete=models.PROTECT)

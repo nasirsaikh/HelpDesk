@@ -83,7 +83,7 @@ def retrieve_knowledge(*, tenant, actor, query, embedding=None, limit=5):
         ]
 
 
-def provider_completion(*, provider, messages, sensitive=True):
+def provider_completion(*, provider, messages, sensitive=True, timeout_seconds=None):
     ctx = current_context()
     if (
         not ctx
@@ -113,7 +113,9 @@ def provider_completion(*, provider, messages, sensitive=True):
         }
     with urlopen(
         Request(url, data=json.dumps(payload).encode(), headers=headers),
-        timeout=provider.timeout_seconds,
+        timeout=min(provider.timeout_seconds, timeout_seconds)
+        if timeout_seconds is not None
+        else provider.timeout_seconds,
     ) as response:
         data = json.loads(response.read(2 * 1024 * 1024))
     return (
@@ -123,20 +125,44 @@ def provider_completion(*, provider, messages, sensitive=True):
     )
 
 
-def extract_email(email):
-    ctx = current_context()
-    if not ctx or email.tenant_id != ctx.tenant_id:
-        raise PermissionDenied("Email company mismatch.")
-    provider = m.AIProviderConfig.all_objects.filter(tenant_id=ctx.tenant_id, active=True).first()
-    if not provider:
-        return {}
-    raw = provider_completion(
-        provider=provider,
-        messages=[
-            {"role": "system", "content": resolve_prompt()},
-            {"role": "user", "content": f"Subject: {email.subject}\n{email.body}"},
-        ],
+def email_domain(transaction_type):
+    if transaction_type == "CLAIM":
+        return "CLAIMS"
+    return (
+        "POLICY"
+        if transaction_type
+        in {"MEMBER_ADD", "MEMBER_DELETE", "TERMINATION", "DEMOGRAPHIC_CHANGE", "POLICY_ENROLL"}
+        else "TICKETING"
     )
+
+
+def email_provider(domain):
+    from .agent_specs import DOMAIN_FEATURES
+
+    ctx = current_context()
+    if not all(ctx.tenant.feature_flags.get(flag, True) for flag in DOMAIN_FEATURES[domain]):
+        return None
+    agent = (
+        m.AIAgentConfig.all_objects.filter(tenant_id=ctx.tenant_id, domain=domain, is_default=True)
+        .select_related("provider")
+        .first()
+    )
+    if agent and not agent.active:
+        raise ValidationError("The default email agent is inactive.")
+    if agent and agent.provider_id:
+        return agent.provider
+    # Backward compatibility for a single provider. Multiple providers require an explicit binding.
+    providers = list(
+        m.AIProviderConfig.all_objects.filter(tenant_id=ctx.tenant_id, active=True)[:2]
+    )
+    if len(providers) > 1:
+        raise ValidationError(
+            "Choose a provider for the default agent in this email's business area."
+        )
+    return providers[0] if providers else None
+
+
+def extraction_payload(raw):
     try:
         payload = json.loads(raw)
     except (ValueError, TypeError):
@@ -164,6 +190,66 @@ def extract_email(email):
         ]
         if key in payload
     }
+
+
+def extract_email(email):
+    ctx = current_context()
+    if not ctx or email.tenant_id != ctx.tenant_id:
+        raise PermissionDenied("Email company mismatch.")
+    words = (email.subject + " " + email.body).lower()
+    hints = [
+        ("CLAIM", r"\bclaims?\b"),
+        ("MEMBER_DELETE", r"\b(deletion|delete member)\b"),
+        ("MEMBER_ADD", r"\b(addition|add member)\b"),
+        ("TERMINATION", r"\btermination\b"),
+        ("POLICY_ENROLL", r"\b(enrollment|enrolment)\b"),
+        ("DEMOGRAPHIC_CHANGE", r"\bdemographic\b"),
+    ]
+    hint = next((kind for kind, pattern in hints if re.search(pattern, words)), "")
+    provider = email_provider(email_domain(hint))
+    if not provider:
+        return {}
+    raw = provider_completion(
+        provider=provider,
+        messages=[
+            {"role": "system", "content": resolve_prompt(transaction_type=hint)},
+            {"role": "user", "content": f"Subject: {email.subject}\n{email.body}"},
+        ],
+    )
+    payload = extraction_payload(raw)
+    kind = payload.get("transaction_type") or ""
+    specific = (
+        m.AIPrompt.all_objects.filter(
+            tenant_id=ctx.tenant_id, purpose="EXTRACTION", transaction_type=kind
+        ).exists()
+        if kind
+        else False
+    )
+    if (
+        kind != hint
+        and kind in dict(m.Transaction._meta.get_field("transaction_type").choices)
+        and (specific or email_domain(kind) != email_domain(hint))
+    ):
+        provider = email_provider(email_domain(kind))
+        if not provider:
+            return {}
+        payload = extraction_payload(
+            provider_completion(
+                provider=provider,
+                messages=[
+                    {"role": "system", "content": resolve_prompt(transaction_type=kind)},
+                    {
+                        "role": "user",
+                        "content": f"Extract this {kind} request. Subject: {email.subject}\n{email.body}",
+                    },
+                ],
+            )
+        )
+        if payload.get("transaction_type") != kind:
+            raise ValidationError(
+                "Transaction classification changed during extraction. Review the email."
+            )
+    return payload
 
 
 def report_queryset(model):

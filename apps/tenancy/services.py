@@ -111,6 +111,9 @@ def onboard_company(*, code, name, admin_email, operator=None):
         m.NotificationTemplate.objects.get_or_create(
             name="ticket-update", defaults={"footer": f"{name} · HelpDesk"}
         )
+        from apps.desk.agents import seed_company_agents
+
+        seed_company_agents(tenant=tenant)
     PlatformAuditEvent.objects.create(
         actor=operator,
         tenant=tenant,

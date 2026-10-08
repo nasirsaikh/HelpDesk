@@ -3,8 +3,9 @@ import time
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from apps.desk.agents import expire_agent_runs, run_agent
 from apps.desk.jobs import run_job
-from apps.desk.models import Job
+from apps.desk.models import AIAgentRun, Job
 
 
 class Command(BaseCommand):
@@ -16,6 +17,7 @@ class Command(BaseCommand):
 
     def handle(self, **options):
         while True:
+            expire_agent_runs(company_code=options["company"])
             # Deliberate platform dispatcher. Work happens only inside run_job's tenant context.
             jobs = Job.all_objects.filter(
                 state="QUEUED",
@@ -29,6 +31,16 @@ class Command(BaseCommand):
                 result = run_job(job_id=job.pk, tenant=job.tenant)
                 self.stdout.write(
                     f"Company {job.tenant.code}: job {job.uuid} {'complete' if result else 'not completed'}"
+                )
+            agents = AIAgentRun.all_objects.filter(
+                status="QUEUED", tenant__active=True, tenant__status="ACTIVE"
+            ).select_related("tenant")
+            if options["company"]:
+                agents = agents.filter(tenant__code=options["company"])
+            for run in agents.order_by("created_at")[:100]:
+                result = run_agent(tenant=run.tenant, run_uuid=run.uuid)
+                self.stdout.write(
+                    f"Company {run.tenant.code}: agent run {run.uuid} {'complete' if result else 'not completed'}"
                 )
             if not options["watch"]:
                 break
