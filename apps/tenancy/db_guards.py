@@ -5,10 +5,12 @@ PostgreSQL uses composite foreign keys backed by each model's (tenant_id,id) con
 """
 
 
-def install_guards(apps, schema_editor):
+def install_guards(apps, schema_editor, model_names=None):
     connection = schema_editor.connection
     quote = schema_editor.quote_name
     for model in apps.get_app_config("desk").get_models():
+        if model_names is not None and model._meta.model_name not in model_names:
+            continue
         if not any(field.name == "tenant" for field in model._meta.fields):
             continue
         table = model._meta.db_table
@@ -50,6 +52,8 @@ def install_guards(apps, schema_editor):
                 f"CREATE TRIGGER {quote(table + '_tenant_immutable')} BEFORE UPDATE OF tenant_id ON {quote(table)} "
                 "FOR EACH ROW EXECUTE FUNCTION helpdesk_immutable_company()"
             )
+    if model_names is not None:
+        return  # Later migrations install guards only on their new tables.
     audit = apps.get_model("desk", "AuditEvent")._meta.db_table
     if connection.vendor == "sqlite":
         for operation in ["UPDATE", "DELETE"]:

@@ -5,6 +5,7 @@ def portal(request):
     tenant = getattr(request, "tenant", None)
     if not tenant:
         return {}
+    from apps.desk.agents import visible_agents
     from apps.desk.models import Notification
 
     role = getattr(request, "tenant_membership", None)
@@ -37,5 +38,6 @@ def portal(request):
         "can_view_tickets": has_capability("ticket"),
         "can_view_policies": has_capability("policy"),
         "can_use_ai": has_capability("knowledge") and tenant.feature_flags.get("ai", True),
+        "can_use_agents": bool(visible_agents(tenant=tenant)),
         "can_manage_company": has_capability("settings", "edit"),
     }

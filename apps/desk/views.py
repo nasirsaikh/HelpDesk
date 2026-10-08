@@ -733,6 +733,7 @@ CONFIGS = {
         ],
     ),
     "ai-prompts": (m.AIPrompt, ["purpose", "transaction_type", "prompt", "training_examples"]),
+    "ai-agents": (m.AIAgentConfig, f.AIAgentForm.Meta.fields),
     "email-templates": (m.NotificationTemplate, ["name", "subject", "footer"]),
     "service-accounts": (m.ServiceAccount, ["name", "active", "scopes", "expires_at"]),
 }
@@ -799,7 +800,11 @@ def config_edit(request, kind, uuid=None):
         raise Http404
     model, fields = CONFIGS[kind]
     instance = get_object_or_404(model.objects, uuid=uuid) if uuid else None
-    form_class = modelform_factory(model, form=f.ScopedModelForm, fields=fields)
+    form_class = (
+        f.AIAgentForm
+        if kind == "ai-agents"
+        else modelform_factory(model, form=f.ScopedModelForm, fields=fields)
+    )
     form = form_class(request.POST or None, tenant=request.tenant, instance=instance)
     token = None
     if kind == "service-accounts" and not instance:

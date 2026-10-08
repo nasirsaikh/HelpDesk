@@ -45,13 +45,24 @@ The command prints a randomly generated password. `demo.admin@takaful.example` i
 - Tickets with tenant-specific references, SLA deadlines, categories, support assignment, comments, internal notes, attachments, assigned approvals and validated workflow progression.
 - Policy enrollment, multiple benefit plans, principal/dependent members, active/inactive member tabs and fullscreen member cards.
 - Linked endorsements/claims, tasks, protected document downloads and company knowledge articles.
-- Company settings for projects, products, categories, groups, organization types, workflows, SLA, notifications, mailbox credentials, email authority, AI providers, prompts and service accounts.
+- Company settings for projects, products, categories, groups, organization types, workflows, SLA, notifications, mailbox credentials, email authority, AI providers, prompts, agents and service accounts.
 - Invitation acceptance for new users and existing global identities, without transferring roles between companies.
 - Scoped API reads, report exports, queued jobs, tenant-aware Graph mailbox polling, notification outbox and scoped AI knowledge retrieval.
 - SQL analytics against an authorized in-memory snapshot; generated SQL never runs against shared application tables.
 - Temporary, reasoned, audited platform support sessions with a prominent portal banner.
+- Separate Claims, Policy, Finance and Ticketing agents with model bindings, scoped tools, background execution and reviewed comment drafts.
 
 See [architecture and authorization](docs/architecture.md), [operations](docs/operations.md), [requirement coverage](docs/requirement-coverage.md) and [API usage](docs/api.md).
+
+## Company AI agents
+
+Run `python manage.py migrate` to install and seed four agents for existing companies. Newly onboarded companies receive them automatically.
+
+1. In **Company settings → AI providers**, configure your endpoint, model and company-prefixed token environment reference. Enable **Allow sensitive data** for a provider approved to process your company data. Set the referenced environment variable in the worker environment.
+2. In **Company settings → AI agents**, edit Claims, Policy, Finance and Ticketing. Bind each to its provider and adjust its prompt, knowledge categories, permitted tools and role restrictions. Agents can share a model or use different models.
+3. Run `python manage.py run_tenant_jobs --watch`, then open **AI agents** in the portal. Select a specialist or use automatic routing. Results appear in your request history; suggested ticket comments offer **Post comment** and **Dismiss draft**.
+
+Finance summarizes recorded endorsement premium impacts and calculates totals. A payment ledger is not connected. Agents do not approve claims, change policies or execute payments. See [agent setup, routing and tools](docs/agents.md) for configuration details and examples.
 
 ## Verify
 
@@ -82,6 +93,8 @@ DEMO_PASSWORD='your-demo-password' TEST_START_SERVER=1 DJANGO_PYTHON=.venv/bin/p
 ```
 
 Screenshots and browser results are written under `test-results/`. GitHub Actions runs both SQLite and native PostgreSQL suites.
+
+To check agent setup, four model bindings, automatic routing, live results and draft review with a local HTTP test provider, run `npm run test:agents:browser` with the same environment variables. Use a development demo database: this check configures its agent bindings and posts one reviewed demo comment. It does not call a real model vendor.
 
 ## Production
 

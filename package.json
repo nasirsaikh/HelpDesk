@@ -1,6 +1,6 @@
 {
   "name": "helpdesk-browser-verification",
   "private": true,
-  "scripts": {"test:browser": "node tests/browser_smoke.cjs"},
+  "scripts": {"test:browser": "node tests/browser_smoke.cjs", "test:agents:browser": "node tests/browser_agents.cjs"},
   "devDependencies": {"playwright": "1.55.1"}
 }

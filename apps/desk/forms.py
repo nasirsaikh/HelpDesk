@@ -241,3 +241,51 @@ class CompanySettingsForm(forms.ModelForm):
 class InvitationForm(forms.Form):
     email = forms.EmailField()
     role = forms.ChoiceField(choices=TenantMembership.Role.choices)
+
+
+class AIAgentForm(ScopedModelForm):
+    from .agents import TOOL_SPECS
+
+    allowed_tools = forms.MultipleChoiceField(
+        choices=[(name, name.replace("_", " ").title()) for name in TOOL_SPECS],
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select tools supported by the selected domain. The server checks the user's permissions on each call.",
+    )
+    allowed_roles = forms.MultipleChoiceField(
+        choices=TenantMembership.Role.choices,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Leave empty to use existing company resource permissions. Selected roles add a restriction.",
+    )
+    knowledge_categories = forms.CharField(
+        required=False,
+        max_length=1600,
+        help_text="Comma-separated knowledge categories, for example Claims, Claims SOP. Empty disables knowledge search.",
+    )
+
+    class Meta:
+        model = models.AIAgentConfig
+        fields = [
+            "code",
+            "name",
+            "domain",
+            "provider",
+            "system_prompt",
+            "knowledge_categories",
+            "allowed_tools",
+            "allowed_roles",
+            "active",
+            "is_default",
+            "max_steps",
+            "timeout_seconds",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initial["knowledge_categories"] = ", ".join(self.instance.knowledge_categories)
+
+    def clean_knowledge_categories(self):
+        return [
+            v.strip() for v in self.cleaned_data["knowledge_categories"].split(",") if v.strip()
+        ]

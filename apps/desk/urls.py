@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import api, views
+from . import agent_views, api, views
 
 app_name = "desk"
 urlpatterns = [
@@ -35,6 +35,10 @@ urlpatterns = [
     path("reports/queue/", views.export_queue, name="export-queue"),
     path("reports/<uuid:uuid>/download/", views.export_download, name="export-download"),
     path("ai/search/", views.ai_search, name="ai-search"),
+    path("ai/agents/", agent_views.assistant, name="agent-assistant"),
+    path("ai/agents/history/", agent_views.history, name="agent-history"),
+    path("ai/agents/runs/<uuid:uuid>/", agent_views.detail, name="agent-run"),
+    path("ai/agents/drafts/<uuid:uuid>/review/", agent_views.review, name="agent-review"),
     path("settings/", views.settings, name="settings"),
     path("settings/invite/", views.invite, name="invite"),
     path("settings/members/<int:pk>/", views.membership_edit, name="membership-edit"),
