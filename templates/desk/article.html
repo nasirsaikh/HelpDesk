@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block title %}{{ article.title }}{% endblock %}{% block content %}<div class="page-heading"><div><a class="eyebrow" href="{% url 'desk:knowledge-list' %}">← Knowledge</a><h1>{{ article.title }}</h1><p>{{ article.category }}</p></div></div><article class="card"><div class="card-body prose">{{ article.body|linebreaks }}</div></article>{% endblock %}

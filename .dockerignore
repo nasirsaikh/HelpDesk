@@ -1,0 +1,10 @@
+.git
+.env
+.venv
+node_modules
+db.sqlite3
+private_media
+staticfiles
+test-results
+__pycache__
+*.pyc
